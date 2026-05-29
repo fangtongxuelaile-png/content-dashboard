@@ -15,7 +15,7 @@ from pathlib import Path
 
 # ── 登录系统配置 ──
 USERS = {
-    "admin": {"password": "admin123", "name": "管理员", "role": "admin"},
+    "long520": {"password": "202310", "name": "管理员", "role": "admin"},
     "xiaotun": {"password": "xiaotun888", "name": "小豚运营", "role": "editor"},
     "guest": {"password": "guest2024", "name": "访客", "role": "viewer"},
 }
