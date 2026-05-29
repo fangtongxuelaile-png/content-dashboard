@@ -323,7 +323,7 @@ def get_timeline_data(platform_ids=None, date_from=None, date_to=None):
     conn = get_conn()
     sql = """
         SELECT c.id, c.title, c.plan_date, c.pub_date, c.status,
-               p.name as platform_name, p.color as platform_color, p.icon
+               p.name as platform_name, p.color as platform_color, p.icon as platform_icon
         FROM contents c JOIN platforms p ON c.platform_id=p.id
         WHERE c.plan_date IS NOT NULL
     """
