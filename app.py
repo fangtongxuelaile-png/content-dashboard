@@ -13,6 +13,16 @@ import pandas as pd
 from datetime import date, timedelta, datetime
 from pathlib import Path
 
+# ── 登录系统配置 ──
+USERS = {
+    "admin": {"password": "admin123", "name": "管理员", "role": "admin"},
+    "xiaotun": {"password": "xiaotun888", "name": "小豚运营", "role": "editor"},
+    "guest": {"password": "guest2024", "name": "访客", "role": "viewer"},
+}
+
+if "auth_user" not in st.session_state:
+    st.session_state.auth_user = None
+
 # ── 导入自定义模块 ──
 from theme import DARK_GOLD_CSS, get_plotly_template, PLATFORMS, STATUS_OPTIONS, STATUS_COLORS, CREATOR_TYPES, CONTENT_TYPES
 from dashboard_core import (
@@ -34,6 +44,102 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ── 登录拦截 ──
+if st.session_state.auth_user is None:
+    st.markdown("""
+    <style>
+    .login-container {
+        max-width: 420px;
+        margin: 10vh auto 0;
+        padding: 48px 40px;
+        background: linear-gradient(145deg, #111827 0%, #0A0E17 100%);
+        border: 1px solid rgba(201,168,76,0.25);
+        border-radius: 16px;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 40px rgba(201,168,76,0.06);
+        text-align: center;
+    }
+    .login-container h2 {
+        color: #C9A84C;
+        margin-bottom: 8px;
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+    .login-container p.sub {
+        color: #94A3B8;
+        font-size: 14px;
+        margin-bottom: 32px;
+    }
+    .login-divider {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(201,168,76,0.3), transparent);
+        margin: 24px 0;
+    }
+    .login-hint {
+        color: #64748B;
+        font-size: 12px;
+        margin-top: 20px;
+    }
+    .login-hint code {
+        background: rgba(201,168,76,0.1);
+        color: #C9A84C;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+    </style>
+    <div class="login-container">
+        <div style="font-size:42px;margin-bottom:12px;">🎯</div>
+        <h2>小豚当家 · 内容看板</h2>
+        <p class="sub">全平台投放内容管理与数据追踪</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.container():
+        c1, c2, c3 = st.columns([1, 2.5, 1])
+        with c2:
+            username = st.text_input("账号", placeholder="请输入账号", key="login_user")
+            password = st.text_input("密码", placeholder="请输入密码", type="password", key="login_pass")
+            col_a, col_b = st.columns([1, 1])
+            with col_a:
+                login_btn = st.button("🔐 登录", use_container_width=True, type="primary")
+            with col_b:
+                st.button("🌱 访客演示", use_container_width=True, on_click=lambda: st.session_state.update({"auth_user": "guest"}))
+            if login_btn:
+                if username in USERS and USERS[username]["password"] == password:
+                    st.session_state.auth_user = username
+                    st.rerun()
+                else:
+                    st.error("账号或密码错误，请重试")
+            st.markdown("""
+            <div class="login-hint">
+                可用账号：<code>admin</code> / <code>xiaotun</code> / <code>guest</code>
+            </div>
+            """, unsafe_allow_html=True)
+    st.stop()
+
+# ── 已登录：侧边栏用户信息 ──
+user_info = USERS.get(st.session_state.auth_user, {})
+with st.sidebar:
+    st.markdown(f"""
+    <div style="
+        background: linear-gradient(135deg, rgba(201,168,76,0.12), rgba(76,138,201,0.08));
+        border: 1px solid rgba(201,168,76,0.2);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        text-align: center;
+    ">
+        <div style="font-size:28px;margin-bottom:6px;">👤</div>
+        <div style="color:#C9A84C;font-weight:700;font-size:16px;">{user_info.get('name', '用户')}</div>
+        <div style="color:#64748B;font-size:12px;margin-top:2px;">@{st.session_state.auth_user} · {user_info.get('role', '')}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("🚪 退出登录", use_container_width=True):
+        st.session_state.auth_user = None
+        st.rerun()
+    st.divider()
 
 # ============================================================
 #  辅助函数
