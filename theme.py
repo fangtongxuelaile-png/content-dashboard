@@ -261,10 +261,10 @@ def get_plotly_template():
     """Plotly暗金配色模板"""
     return dict(
         layout=dict(
-            paper_color='#0A0E17',
+            paper_bgcolor='#0A0E17',
             plot_bgcolor='#111827',
             font=dict(color='#F1F5F9', family='Noto Sans SC, sans-serif'),
-            title_font=dict(size=18, color='#C9A84C', family='Noto Serif SC, serif'),
+            title=dict(font=dict(size=18, color='#C9A84C', family='Noto Serif SC, serif')),
             xaxis=dict(
                 gridcolor='rgba(255,255,255,0.04)',
                 linecolor='rgba(255,255,255,0.08)',

@@ -325,7 +325,8 @@ if timeline_data:
     fig_gantt.update_yaxes(autorange="reversed")
     fig_gantt.update_xaxes(rangeslider_visible=False)
     fig_gantt.update_layout(height=max(300, len(df_gantt) * 32 + 80),
-                             showlegend=True, legend_orientation="h")
+                             showlegend=True,
+                             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
     fig_gantt.update_layout(margin=dict(l=10, r=10, t=10, b=40))
 
     st.plotly_chart(fig_gantt, use_container_width=True)
