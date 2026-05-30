@@ -580,20 +580,90 @@ if st.session_state.get("show_add_dialog"):
 #  批量导入弹窗
 # ============================================================
 if st.session_state.get("show_import_dialog"):
-    with st.dialog("📥 批量导入 Excel", width=680):
+    with st.dialog("📥 批量导入 Excel", width=720):
+        # ── 格式要求说明 ──
         st.markdown("""
-        <div style="background:rgba(201,168,76,0.06);padding:14px;border-radius:8px;border:1px solid rgba(201,168,76,0.15);margin-bottom:16px;">
-        <strong>导入格式要求：</strong><br>
-        • 支持 .xlsx 或 .csv 文件<br>
-        • 必需列：<code>平台</code>、<code>标题</code>、<code>状态</code>（其他列为可选）<br>
+        <div style="background:rgba(201,168,76,0.06);padding:14px;border-radius:8px;border:1px solid rgba(201,168,76,0.15);margin-bottom:20px;">
+        <strong style="color:#C9A84C;">导入格式要求：</strong><br>
+        • 支持 <code>.xlsx</code> 或 <code>.csv</code> 文件&nbsp;&nbsp;• 必需列：<code>平台</code>、<code>标题</code>、<code>状态</code><br>
         • 平台值：CID / 抖音达人 / 种草通 / B站达人 / B站投放 / 小红书KOC / 视频号<br>
         • 状态值：待排期 / 素材制作中 / 待审核 / 已发布 / 已下架 / 异常
         </div>
         """, unsafe_allow_html=True)
 
-        uploaded_file = st.file_uploader("选择文件", type=["xlsx", "csv"], help="支持 .xlsx 和 .csv 格式")
+        # ── 拖拽上传区域（暗金风格） ──
+        st.markdown("""
+        <style>
+        .upload-drop-zone {
+            border: 2px dashed rgba(201,168,76,0.35);
+            border-radius: 12px;
+            background: linear-gradient(180deg, rgba(201,168,76,0.04) 0%, rgba(17,24,39,0.4) 100%);
+            padding: 40px 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            margin-bottom: 16px;
+        }
+        .upload-drop-zone:hover {
+            border-color: rgba(201,168,76,0.6);
+            background: linear-gradient(180deg, rgba(201,168,76,0.08) 0%, rgba(17,24,39,0.5) 100%);
+        }
+        .upload-drop-zone .icon {
+            font-size: 42px;
+            margin-bottom: 10px;
+            opacity: 0.7;
+        }
+        .upload-drop-zone .title {
+            color: #C9A84C;
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+        .upload-drop-zone .subtitle {
+            color: #64748B;
+            font-size: 12px;
+        }
+        .upload-drop-zone .hint {
+            color: #475569;
+            font-size: 11px;
+            margin-top: 10px;
+        }
+        </style>
+        <div class="upload-drop-zone">
+            <div class="icon">📁</div>
+            <div class="title">拖拽文件到此处上传</div>
+            <div class="subtitle">或点击下方按钮选择本地文件</div>
+            <div class="hint">支持 .xlsx / .csv 格式，单次最多 200MB</div>
+        </div>
+        """, unsafe_allow_html=True)
 
+        uploaded_file = st.file_uploader(
+            "选择本地文件",
+            type=["xlsx", "csv"],
+            label_visibility="collapsed"
+        )
+
+        # ── 模板下载按钮 ──
+        template_df = pd.DataFrame([{
+            "平台": "抖音达人", "标题": "示例：X10摄像头开箱测评",
+            "状态": "待排期", "类型": "KOL", "达人": "数码测评君",
+            "计划日期": "2026-06-01", "发布日期": "",
+            "内容形式": "视频", "备注": "需寄样"
+        }])
+        template_csv = template_df.to_csv(index=False).encode('utf-8-sig')
+        col_dl, col_spacer = st.columns([1, 3])
+        with col_dl:
+            st.download_button(
+                label="📄 下载导入模板",
+                data=template_csv,
+                file_name="content_import_template.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+
+        # ── 文件解析与导入 ──
         if uploaded_file:
+            st.markdown("<hr style='border:none;height:1px;background:linear-gradient(90deg,transparent,rgba(201,168,76,0.2),transparent);margin:20px 0;'>", unsafe_allow_html=True)
             try:
                 ext = uploaded_file.name.split(".")[-1].lower()
                 if ext == "xlsx":
@@ -601,7 +671,8 @@ if st.session_state.get("show_import_dialog"):
                 else:
                     df_import = pd.read_csv(uploaded_file, encoding='utf-8-sig')
 
-                st.dataframe(df_import.head(10))
+                st.markdown(f"<div style='color:#94A3B8;font-size:13px;margin-bottom:8px;'>📋 预览前 10 行（共 {len(df_import)} 行）</div>", unsafe_allow_html=True)
+                st.dataframe(df_import.head(10), use_container_width=True)
 
                 pid_map_rev = {p["name"]: p["id"] for p in PLATFORMS}
                 imported = 0
@@ -635,21 +706,24 @@ if st.session_state.get("show_import_dialog"):
                     except Exception as e:
                         errors.append(f"行{idx+2}: {e}")
 
-                st.success(f"✅ 成功导入 {imported} 条记录！")
+                st.success(f"✅ 成功导入 **{imported}** 条记录！")
                 if errors:
-                    st.warning(f"⚠️ {len(errors)} 行跳过：" + "\n".join(errors[:5]))
+                    st.warning(f"⚠️ {len(errors)} 行跳过：")
+                    for err in errors[:5]:
+                        st.caption(f"• {err}")
                     if len(errors) > 5:
                         st.caption(f"... 还有 {len(errors)-5} 个错误")
 
-                if st.button("关闭并刷新", type="primary"):
+                if st.button("🔄 关闭并刷新", type="primary", use_container_width=True):
                     st.session_state.pop("show_import_dialog", None)
                     st.rerun()
 
             except Exception as e:
                 st.error(f"❌ 解析失败：{e}")
 
+        # ── 取消按钮 ──
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("取消", key="cancel_import"):
+        if st.button("❌ 取消", key="cancel_import", use_container_width=True):
             st.session_state.pop("show_import_dialog", None)
             st.rerun()
 
