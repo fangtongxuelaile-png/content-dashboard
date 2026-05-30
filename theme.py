@@ -41,8 +41,19 @@ DARK_GOLD_CSS = """
 
 /* 隐藏侧边栏折叠按钮，固定侧边栏不可收起 */
 button[kind="header"],
-[data-testid="stSidebarCollapsedControl"] {
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarNav"] > button,
+[data-testid="stSidebar"] > div:first-child > button,
+section[data-testid="stSidebar"] button[aria-label],
+.st-emotion-cache-1p1m4ay,
+.st-emotion-cache-1cypcdb {
   display: none !important;
+}
+[data-testid="stSidebar"] {
+  transform: none !important;
+  transition: none !important;
+  min-width: 21rem !important;
+  max-width: 21rem !important;
 }
 [data-testid="stSidebar"] [data-testid="stSelectbox"],
 [data-testid="stSidebar"] [data-testid="stMultiselect"] {
