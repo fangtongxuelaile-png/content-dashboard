@@ -211,9 +211,11 @@ with st.sidebar:
     # 操作按钮
     if st.button("➕ 新增内容", use_container_width=True, key="btn_add"):
         st.session_state["show_add_dialog"] = True
+        st.rerun()
 
     if st.button("📥 批量导入Excel", use_container_width=True, key="btn_import"):
         st.session_state["show_import_dialog"] = True
+        st.rerun()
 
     if st.button("🌱 填充演示数据", use_container_width=True, key="btn_seed"):
         seed_demo_data()
