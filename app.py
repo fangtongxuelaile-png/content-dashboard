@@ -213,6 +213,12 @@ with st.sidebar:
         st.session_state["show_add_dialog"] = True
         st.rerun()
 
+    # ── 批量导入按钮（始终可见，点击切换面板） ──
+    import_label = "📤 收起导入面板" if st.session_state.get("show_import_panel") else "📥 批量导入Excel"
+    if st.button(import_label, use_container_width=True, key="btn_import"):
+        st.session_state["show_import_panel"] = not st.session_state.get("show_import_panel", False)
+        st.rerun()
+
     # ── 批量导入面板（在侧边栏展开） ──
     if st.session_state.get("show_import_panel"):
         st.markdown("""
@@ -365,10 +371,6 @@ with st.sidebar:
                 st.error(f"❌ 解析失败：{e}")
 
         st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
-    else:
-        if st.button("📥 批量导入Excel", use_container_width=True, key="btn_import"):
-            st.session_state["show_import_panel"] = True
-            st.rerun()
 
     if st.button("🌱 填充演示数据", use_container_width=True, key="btn_seed"):
         seed_demo_data()
