@@ -38,6 +38,12 @@ DARK_GOLD_CSS = """
 [data-testid="stSidebar"] * {
   color: #cfe3ff !important;
 }
+
+/* 隐藏侧边栏折叠按钮，固定侧边栏不可收起 */
+button[kind="header"],
+[data-testid="stSidebarCollapsedControl"] {
+  display: none !important;
+}
 [data-testid="stSidebar"] [data-testid="stSelectbox"],
 [data-testid="stSidebar"] [data-testid="stMultiselect"] {
   background: rgba(255,255,255,0.06) !important;
