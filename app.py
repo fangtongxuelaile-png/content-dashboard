@@ -204,6 +204,7 @@ def _fmt_cpe(val):
 # ============================================================
 #  侧边栏
 # ============================================================
+# NOTE: force redeploy — sidebar ops buttons
 with st.sidebar:
     # Logo / 标题区
     st.markdown("""
