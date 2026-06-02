@@ -214,6 +214,68 @@ def get_content_by_id(cid: int) -> Optional[Dict]:
     return dict(row) if row else None
 
 
+def get_contents_with_metrics(
+    platform_ids: Optional[List[int]] = None,
+    statuses: Optional[List[str]] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: Optional[int] = None
+) -> List[Dict]:
+    """获取内容列表，附带最新一次效果数据（LEFT JOIN metrics 取最新一条）"""
+    conn = get_conn()
+    sql = """
+        SELECT c.*, p.name as platform_name, p.icon as platform_icon, p.color as platform_color,
+               m.views as latest_views, m.likes as latest_likes, m.comments as latest_comments,
+               m.shares as latest_shares, m.collects as latest_collects,
+               m.cost as latest_cost, m.cpe as latest_cpe, m.ctr as latest_ctr,
+               m.gmv as latest_gmv, m.roi as latest_roi
+        FROM contents c
+        JOIN platforms p ON c.platform_id=p.id
+        LEFT JOIN metrics m ON m.content_id=c.id
+            AND m.id = (
+                SELECT m2.id FROM metrics m2
+                WHERE m2.content_id=c.id
+                ORDER BY m2.date DESC LIMIT 1
+            )
+        WHERE 1=1
+    """
+    params: list = []
+
+    if platform_ids:
+        placeholders = ",".join("?" * len(platform_ids))
+        sql += f" AND c.platform_id IN ({placeholders})"
+        params.extend(platform_ids)
+
+    if statuses:
+        placeholders = ",".join("?" * len(statuses))
+        sql += f" AND c.status IN ({placeholders})"
+        params.extend(statuses)
+
+    if date_from:
+        sql += " AND (c.plan_date >= ? OR c.pub_date >= ?)"
+        params.extend([date_from, date_from])
+
+    if date_to:
+        sql += " AND (c.plan_date <= ? OR c.pub_date <= ?)"
+        params.extend([date_to, date_to])
+
+    if search:
+        sql += " AND (c.title LIKE ? OR c.creator_name LIKE ? OR c.note LIKE ?)"
+        like = f"%{search}%"
+        params.extend([like, like, like])
+
+    sql += " ORDER BY c.updated_at DESC"
+
+    if limit:
+        sql += f" LIMIT {limit}"
+
+    rows = conn.execute(sql, params).fetchall()
+    result = [dict(r) for r in rows]
+    conn.close()
+    return result
+
+
 # ── CRUD: 效果数据 ──
 
 def add_metrics(content_id: int, data: Dict[str,Any]) -> int:

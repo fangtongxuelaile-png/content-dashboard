@@ -28,6 +28,7 @@ from theme import DARK_GOLD_CSS, get_plotly_template, PLATFORMS, STATUS_OPTIONS,
 from dashboard_core import (
     init_db, seed_demo_data,
     get_contents, add_content, update_content, delete_content,
+    get_contents_with_metrics,
     get_kpi, get_platform_summary, get_timeline_data, get_performance_trend,
     get_content_by_id, get_metrics_by_content,
 )
@@ -171,6 +172,33 @@ def _status_tag(status: str):
 def _platform_badge(name: str, icon: str, color: str):
     """平台标签"""
     return f'<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:2px 10px;border-radius:999px;background:{color}18;color:{color};font-weight:600;">{icon} {name}</span>'
+
+
+def _fmt_num(val):
+    """格式化数字：1.2w / 860 / 0"""
+    if val is None or val == 0:
+        return "-"
+    val = float(val)
+    if val >= 10000:
+        return f"{val/10000:.1f}w"
+    elif val >= 1000:
+        return f"{val/1000:.1f}k"
+    else:
+        return str(int(val))
+
+
+def _fmt_cost(val):
+    """格式化花费"""
+    if val is None or val == 0:
+        return "-"
+    return f"¥{float(val):,.0f}"
+
+
+def _fmt_cpe(val):
+    """格式化CPE"""
+    if val is None or val == 0:
+        return "-"
+    return f"¥{float(val):.2f}"
 
 
 # ============================================================
@@ -388,8 +416,8 @@ sel_pids = [pid_map[n] for n in sel_platforms if n in pid_map] if sel_platforms 
 
 filters = {"platform_ids": sel_pids}
 
-# 获取数据
-all_contents = get_contents(
+# 获取数据（含效果指标）
+all_contents = get_contents_with_metrics(
     platform_ids=sel_pids,
     statuses=sel_statuses,
     date_from=d_from.isoformat(),
@@ -597,58 +625,66 @@ st.markdown('<hr class="gold-divider">', unsafe_allow_html=True)
 st.markdown("""
 <div class="section-header">
   <h3>📋 内容明细</h3>
-  <span class="badge">共 {} 条 | 可直接编辑状态</span>
+  <span class="badge">共 {} 条 | 支持编辑/删除/查看详情</span>
 </div>
 """.format(len(all_contents)), unsafe_allow_html=True)
 
 if all_contents:
-    # 构建可编辑表格
+    # 构建带效果数据的显示行
     display_rows = []
     for c in all_contents:
         display_rows.append({
             "ID": c["id"],
             "平台": f"{c['platform_icon']} {c['platform_name']}",
-            "标题": c["title"],
+            "标题": c["title"][:40] + ("..." if len(c["title"]) > 40 else ""),
+            "创作者": c["creator_name"] or "-",
             "类型": c["creator_type"],
-            "达人": c["creator_name"] or "-",
             "状态": c["status"],
             "计划日期": c["plan_date"] or "-",
             "发布日期": c["pub_date"] or "-",
-            "内容形式": c["content_type"],
-            "备注": c["note"] or "",
+            "形式": c["content_type"],
+            "播放量": _fmt_num(c.get("latest_views")),
+            "点赞": _fmt_num(c.get("latest_likes")),
+            "花费": _fmt_cost(c.get("latest_cost")),
+            "CPE": _fmt_cpe(c.get("latest_cpe")),
+            "备注": (c["note"] or "")[:20],
         })
 
     df_display = pd.DataFrame(display_rows)
 
-    # 使用 data_editor 实现可编辑状态
+    # 使用 data_editor 实现可编辑
     edited_df = st.data_editor(
         df_display,
         column_config={
             "ID": st.column_config.NumberColumn("ID", width="small", disabled=True),
             "平台": st.column_config.TextColumn("平台", width="medium", disabled=True),
             "标题": st.column_config.TextColumn("标题", width="large", disabled=True),
+            "创作者": st.column_config.TextColumn("创作者", width="medium", disabled=True),
             "类型": st.column_config.TextColumn("类型", width="small", disabled=True),
-            "达人": st.column_config.TextColumn("达人", width="medium", disabled=True),
             "状态": st.column_config.SelectboxColumn(
                 "状态",
                 options=STATUS_OPTIONS,
                 required=True,
                 width="small"
             ),
-            "计划日期": st.column_config.DateColumn("计划日期", format="YYYY-MM-DD", width="medium"),
-            "发布日期": st.column_config.DateColumn("发布日期", format="YYYY-MM-DD", width="medium"),
-            "内容形式": st.column_config.SelectboxColumn("内容形式", options=CONTENT_TYPES, width="small"),
+            "计划日期": st.column_config.TextColumn("计划", width="small", disabled=True),
+            "发布日期": st.column_config.TextColumn("发布", width="small", disabled=True),
+            "形式": st.column_config.SelectboxColumn("形式", options=CONTENT_TYPES, width="small"),
+            "播放量": st.column_config.NumberColumn("播放", width="small", disabled=True, format="%s"),
+            "点赞": st.column_config.NumberColumn("点赞", width="small", disabled=True, format="%s"),
+            "花费": st.column_config.NumberColumn("花费(¥)", width="small", disabled=True, format="¥%s"),
+            "CPE": st.column_config.NumberColumn("CPE", width="small", disabled=True, format="¥%s"),
             "备注": st.column_config.TextColumn("备注", width="medium"),
         },
         hide_index=True,
         use_container_width=True,
-        height=min(450, max(200, len(display_rows) * 38 + 48)),
+        height=min(500, max(200, len(display_rows) * 36 + 48)),
         key="content_table_editor"
     )
 
-    # 检测变更并保存
-    save_col, export_col = st.columns([1, 4])
-    with save_col:
+    # 操作按钮行
+    btn_col1, btn_col2, btn_col3, btn_col_spacer = st.columns([1, 1, 1, 3])
+    with btn_col1:
         if st.button("💾 保存修改", type="primary", use_container_width=True):
             changed = False
             for _, row in edited_df.iterrows():
@@ -657,15 +693,13 @@ if all_contents:
                 if orig and row["状态"] != orig["status"]:
                     update_content(cid, {"status": row["状态"]})
                     changed = True
-                if orig and row["计划日期"] != str(orig["plan_date"] or ""):
-                    new_plan = row["计划日期"].isoformat() if hasattr(row["计划日期"], 'isoformat') else str(row["计划日期"]) if row["计划日期"] != "-" else None
-                    if new_plan != orig["plan_date"]:
-                        update_content(cid, {"plan_date": new_plan})
-                        changed = True
-                if orig and row["发布日期"] != str(orig["pub_date"] or ""):
-                    new_pub = row["发布日期"].isoformat() if hasattr(row["发布日期"], 'isoformat') else str(row["发布日期"]) if row["发布日期"] != "-" else None
-                    if new_pub != orig["pub_date"]:
-                        update_content(cid, {"pub_date": new_pub})
+                if orig and row["形式"] != orig["content_type"]:
+                    update_content(cid, {"content_type": row["形式"]})
+                    changed = True
+                if orig and row["备注"] != (orig.get("note") or "")[:20]:
+                    orig_note = orig.get("note") or ""
+                    if str(row["备注"]) != orig_note[:20]:
+                        update_content(cid, {"note": str(row["备注"])})
                         changed = True
             if changed:
                 st.success("✅ 已保存修改！", icon="check")
@@ -673,7 +707,7 @@ if all_contents:
             else:
                 st.info("没有检测到变更。")
 
-    with export_col:
+    with btn_col2:
         csv_bytes = df_display.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             "📥 导出CSV",
@@ -682,6 +716,58 @@ if all_contents:
             mime="text/csv",
             use_container_width=True
         )
+
+    with btn_col3:
+        # 删除功能：输入ID删除
+        del_id = st.text_input("ID", placeholder="输入要删除的ID", key="delete_id_input", label_visibility="collapsed")
+        if st.button("🗑️ 删除", use_container_width=True, key="btn_delete"):
+            if del_id and del_id.strip().isdigit():
+                did = int(del_id.strip())
+                delete_content(did)
+                st.success(f"✅ 已删除 ID={did}")
+                st.rerun()
+            else:
+                st.warning("请输入有效的数字ID")
+
+    # ── 详情面板 ──
+    st.markdown("---")
+    detail_id = st.number_input("🔍 查看详情（输入内容ID）", min_value=1, step=1, key="detail_id_input", label_visibility="visible")
+    if detail_id:
+        detail_content = get_content_by_id(detail_id)
+        if detail_content:
+            detail_metrics = get_metrics_by_content(detail_id)
+            col_left, col_right = st.columns([1, 1])
+
+            with col_left:
+                st.markdown(f"""
+                <div style="background:linear-gradient(145deg,#111827,#0D1117);border:1px solid rgba(201,168,76,0.2);border-radius:12px;padding:20px;margin-bottom:16px;">
+                    <div style="color:#C9A84C;font-size:16px;font-weight:700;margin-bottom:12px;">
+                        {detail_content['platform_icon']} {detail_content['title']}
+                    </div>
+                    <table style="width:100%;font-size:13px;color:#94A3B8;border-collapse:collapse;">
+                        <tr><td style="padding:4px 0;color:#64748B;width:80px;">平台</td><td>{detail_content['platform_icon']} {detail_content['platform_name']}</td></tr>
+                        <tr><td style="padding:4px 0;color:#64748B;">状态</td><td>{_status_tag(detail_content['status'])}</td></tr>
+                        <tr><td style="padding:4px 0;color:#64748B;">创作者</td><td>{detail_content['creator_type']} · {detail_content['creator_name'] or '-'}</td></tr>
+                        <tr><td style="padding:4px 0;color:#64748B;">计划日期</td><td>{detail_content['plan_date'] or '-'}</td></tr>
+                        <tr><td style="padding:4px 0;color:#64748B;">发布日期</td><td>{detail_content['pub_date'] or '-'}</td></tr>
+                        <tr><td style="padding:4px 0;color:#64748B;">内容形式</td><td>{detail_content['content_type']}</td></tr>
+                        <tr><td style="padding:4px 0;color:#64748B;">备注</td><td>{detail_content['note'] or '-'}</td></tr>
+                        <tr><td style="padding:4px 0;color:#64748B;">创建时间</td><td>{detail_content.get('created_at', '-')}</td></tr>
+                    </table>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col_right:
+                if detail_metrics:
+                    df_met = pd.DataFrame(detail_metrics)
+                    df_met_display = df_met[["date", "views", "likes", "comments", "shares", "cost", "cpe", "roi"]].copy()
+                    df_met_display.columns = ["日期", "播放量", "点赞", "评论", "转发", "花费(¥)", "CPE", "ROI"]
+                    st.markdown(f"<div style='color:#C9A84C;font-size:14px;font-weight:700;margin-bottom:8px;'>📊 效果数据（{len(detail_metrics)} 条记录）</div>", unsafe_allow_html=True)
+                    st.dataframe(df_met_display, use_container_width=True, hide_index=True)
+                else:
+                    st.info("暂无效果数据。")
+        else:
+            st.warning(f"未找到 ID={detail_id} 的内容记录。")
 
 else:
     st.info("📭 暂无内容记录。点击左侧「➕ 新增内容」或「🌱 填充演示数据」开始。")
