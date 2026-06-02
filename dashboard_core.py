@@ -222,22 +222,14 @@ def get_contents_with_metrics(
     search: Optional[str] = None,
     limit: Optional[int] = None
 ) -> List[Dict]:
-    """获取内容列表，附带最新一次效果数据（LEFT JOIN metrics 取最新一条）"""
+    """获取内容列表，附带最新一次效果数据"""
     conn = get_conn()
+
+    # ── Step 1: 查询内容列表 ──
     sql = """
-        SELECT c.*, p.name as platform_name, p.icon as platform_icon, p.color as platform_color,
-               m.views as latest_views, m.likes as latest_likes, m.comments as latest_comments,
-               m.shares as latest_shares, m.collects as latest_collects,
-               m.cost as latest_cost, m.cpe as latest_cpe, m.ctr as latest_ctr,
-               m.gmv as latest_gmv, m.roi as latest_roi
+        SELECT c.*, p.name as platform_name, p.icon as platform_icon, p.color as platform_color
         FROM contents c
         JOIN platforms p ON c.platform_id=p.id
-        LEFT JOIN metrics m ON m.content_id=c.id
-            AND m.id = (
-                SELECT m2.id FROM metrics m2
-                WHERE m2.content_id=c.id
-                ORDER BY m2.date DESC LIMIT 1
-            )
         WHERE 1=1
     """
     params: list = []
@@ -272,7 +264,50 @@ def get_contents_with_metrics(
 
     rows = conn.execute(sql, params).fetchall()
     result = [dict(r) for r in rows]
+
+    if not result:
+        conn.close()
+        return result
+
+    # ── Step 2: 批量取最新效果数据（兼容所有 SQLite 版本）──
+    cids = [r["id"] for r in result]
+    placeholders = ",".join("?" * len(cids))
+
+    # 子查询：先按 content_id + date 分组取最大 date，再 join 取完整记录
+    metrics_sql = f"""
+        SELECT m.content_id,
+               m.views, m.likes, m.comments, m.shares, m.collects,
+               m.cost, m.cpe, m.ctr, m.gmv, m.roi
+        FROM metrics m
+        INNER JOIN (
+            SELECT content_id, MAX(date) as max_date
+            FROM metrics
+            WHERE content_id IN ({placeholders})
+            GROUP BY content_id
+        ) mm ON m.content_id = mm.content_id AND m.date = mm.max_date
+    """
+    met_rows = conn.execute(metrics_sql, cids).fetchall()
     conn.close()
+
+    # 转为字典快速查找
+    met_map: dict = {}
+    for mr in met_rows:
+        met_map[mr["content_id"]] = dict(mr)
+
+    # ── Step 3: 合并 ──
+    for r in result:
+        m = met_map.get(r["id"], {})
+        r["latest_views"] = m.get("views")
+        r["latest_likes"] = m.get("likes")
+        r["latest_comments"] = m.get("comments")
+        r["latest_shares"] = m.get("shares")
+        r["latest_collects"] = m.get("collects")
+        r["latest_cost"] = m.get("cost")
+        r["latest_cpe"] = m.get("cpe")
+        r["latest_ctr"] = m.get("ctr")
+        r["latest_gmv"] = m.get("gmv")
+        r["latest_roi"] = m.get("roi")
+
     return result
 
 
